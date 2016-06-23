@@ -2,7 +2,8 @@
 local xml = require("lib.xmlSimple").newParser()
 local str = require 'resty.string'
 local cjson = require 'cjson'
-local _token = "fishioon"
+local models = require 'models'
+local _token = 'fishioon'
 
 local _M = {}
 
@@ -12,8 +13,8 @@ local function _check_signature(signature, timestamp, nonce)
     local tmpstr = table.concat(tmptab)
     tmpstr = ngx.sha1_bin(tmpstr)
     tmpstr = str.to_hex(tmpstr)
-    ngx.log(ngx.INFO, "signature:", signature)
-    ngx.log(ngx.INFO, "result:", tmpstr)
+    ngx.log(ngx.INFO, 'signature:', signature)
+    ngx.log(ngx.INFO, 'result:', tmpstr)
     return signature == tmpstr
 end
 
@@ -73,7 +74,7 @@ function _M.process_msg(xml_msg)
             data = cmd
             --data = 
         elseif cmd == 'xh' then
-            data = cmd
+            data = models.random_joke()
             --
         elseif cmd == 'mk' then
             data = cmd
