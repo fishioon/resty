@@ -1,9 +1,9 @@
 
 local http = require 'resty.http'
-local lrucache = require "resty.lrucache"
-
 local zhihu_pfx = 'http://www.zhihu.com'
-local cache = lrucache.new(200)
+local joke_count = 0
+local jokes = {}
+local last_random_index = 0
 
 local _M = {}
 
@@ -34,14 +34,9 @@ local function parse_joke_page(html_text)
     return res
 end
 
-local function get_zhihu_joke_collect()
-    math.randomseed(ngx.time())
-    local ran_num = math.random(1, 7)
-    return get_all_answers(res.body)
-end
-
 local function get_zhihu_page_joke(page_num)
     local url = zhihu_pfx .. '/collection/37895484?page=' .. page_num
+    ngx.log(ngx.INFO, 'url:', url)
     local httpc = http.new()
     local res, err = httpc:request_uri(url, { method = 'GET' })
     if res == nil then
@@ -53,24 +48,38 @@ end
 
 local function reload_joke()
     local page = 1
+    local index = 0
     while true do
         local res = get_zhihu_page_joke(page)
         if res == nil then
             break
         end
+        for k, v in ipairs(res) do
+            index = index + 1
+            jokes[index] = v
+        end
+        page = page + 1
     end
+    joke_count = index
+    return joke_count
 end
 
 function _M.random_joke()
-    local res = cache:get('joke')
-    if res == nil then
-        res = get_zhihu_joke_collect()
-        cache:set('joke', res, 2) -- 1 sec
+    if joke_count == 0 then
+        return nil
     end
-    return res
+    math.randomseed(ngx.time())
+    local index = math.random(1, joke_count)
+    while last_random_index == index do
+        index = math.random(1, joke_count)
+    end
+    last_random_index = index
+    ngx.log(ngx.INFO, 'random:', index)
+    return zhihu_pfx..jokes[index]
 end
 
 function _M.reload_joke()
+    return reload_joke()
 end
 
 return _M
