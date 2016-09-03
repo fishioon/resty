@@ -1,11 +1,40 @@
 
 local http = require 'resty.http'
+local mysql = require 'resty.mysql'
 local zhihu_pfx = 'http://www.zhihu.com'
 local joke_count = 0
 local jokes = {}
 local last_random_index = 0
 
+local db_conf = {
+    host = "127.0.0.1",
+    port = 3306,
+    database = "online",
+    user = "online",
+    password = "online_wx",
+    max_packet_size = 1024 * 1024
+}
+
 local _M = {}
+
+local function db_reconnect()
+    db, err = mysql:new()
+    if not db then
+        ngx.log(ngx.ERR, 'mysql new failed, err:', err)
+        return nil
+    end
+    local ok, err, errno, sqlstate = db:connect(db_conf)
+    if not ok then
+        ngx.log(ngx.ERR, 'mysql failed, err:', err, ' errno:',errno, ' sqlstate:', sqlstate)
+        return nil
+    end
+    return db
+end
+
+
+local function db_conn()
+    return db_reconnect()
+end
 
 local function parse_joke_page(html_text)
     local sstr = 'data%-entry%-url="'
@@ -80,6 +109,53 @@ end
 
 function _M.reload_joke()
     return reload_joke()
+end
+
+function _M.add_mark(uid, theme, content)
+    local db = db_conn()
+    if not db then
+        return false, 'db err'
+    end
+    local sql = string.format([[insert into wx_mark (uid, theme, content, time)
+                              value (%s, %s, %s, %d)]],
+                              ngx.quote_sql_str(uid),
+                              ngx.quote_sql_str(theme),
+                              ngx.quote_sql_str(content),
+                              ngx.time())
+    ngx.log(ngx.INFO, 'add mark sql:', sql)
+    local res, err, errno, sqlstate = db:query(sql)
+    if not res then
+        ngx.log(ngx.ERR, 'mysql failed, err:', err, ' errno:',errno,' sqlstate:', sqlstate)
+        return false
+    end
+    res, err = db:set_keepalive(10000, 100)
+    if not res then
+        ngx.log(ngx.ERR, "failed to set keepalive: ", err)
+        return false
+    end
+    return true
+end
+
+function _M.get_marks(uid)
+    local db = db_conn()
+    if not db then
+        return nil, 'db err'
+    end
+    local sql = string.format([[select theme, content, time from wx_mark where
+                              uid='%s' order by id desc limit 10]], uid)
+    ngx.log(ngx.INFO, 'add mark sql:', sql)
+    local res, err, errno, sqlstate = db:query(sql, 2)
+    if not res then
+        ngx.log(ngx.ERR, 'mysql failed, err:', err, ' errno:',errno,' sqlstate:', sqlstate)
+        return nil
+    end
+    db:set_keepalive(10000, 100)
+    return res
+end
+
+function _M.random_num(start_num, end_num)
+    math.randomseed(ngx.time())
+    return math.random(start_num, end_num)
 end
 
 return _M

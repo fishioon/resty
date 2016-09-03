@@ -2,6 +2,8 @@
 local ngx_var = ngx.var
 local uri = ngx_var.uri
 local method = ngx.req.get_method()
+local model = require 'models'
+local cjson = require 'cjson'
 
 if uri == '/wx/' then
     local wx = require 'wechat'
@@ -18,8 +20,19 @@ if uri == '/wx/' then
     else
         ngx.say('not support http method:'..method)
     end
-else
-    local model = require 'models'
+elseif uri == '/joke/' then
     local res = model.random_joke()
     ngx.say(res)
+elseif uri == '/mark/' then
+    --local res = model.add_mark('fish', 'test', '你好')
+    local res = model.get_marks('olM6ms0pCy7zQPSZbkmhalGYEe3o')
+    res = cjson.encode(res)
+    ngx.say(res)
+elseif uri == '/test/' then
+	local sampleJson = [[{"key":"aa-\\d"}]]
+	--res = cjson.encode('')
+	local res = cjson.decode(sampleJson)
+	ngx.say(res['key'])
+else
+    ngx.say('hello, openresty')
 end
